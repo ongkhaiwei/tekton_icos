@@ -1,0 +1,51 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: tec-pipeline
+spec:
+  params:
+    - name: repository
+      description: the git repo
+    - name: revision
+      description: the branch for the git repo
+    - name: aws-access-key-id
+      description: access key id
+    - name: aws-secret-access-key
+      description: secret access key
+    - name: aws-default-region
+      description: default region
+    - name: endpoint-url
+      description: endpoint url
+    - name: s3-bucket
+      description: s3 bucket
+    - name: SCRIPT
+      description: script
+  workspaces:
+  - name: pipeline-pvc
+  tasks:
+    - name: pipeline-build-task
+      taskRef:
+        name: build-task
+      params:
+        - name: repository
+          value: $(params.repository)
+        - name: revision
+          value: $(params.revision)
+        - name: aws-access-key-id
+          value: $(params.aws-access-key-id)
+        - name: aws-secret-access-key
+          value: $(params.aws-secret-access-key)
+        - name: aws-default-region
+          value: $(params.aws-default-region)
+        - name: endpoint-url
+          value: $(params.endpoint-url)
+        - name: s3-bucket
+          value: $(params.s3-bucket)
+        - name: SCRIPT
+          value: |
+            aws --version
+            aws s3 --endpoint-url $(params.endpoint-url) rm s3://$(params.s3-bucket) --recursive
+            aws s3 --endpoint-url $(params.endpoint-url) cp /workspace/build s3://$(params.s3-bucket) --recursive
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc

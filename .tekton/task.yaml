@@ -1,0 +1,78 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-task
+spec:
+  params:
+    - name: repository
+      description: the git repo
+    - name: revision
+      description: the revision
+      default: main
+    - name: aws-access-key-id
+      description: access key id
+    - name: aws-secret-access-key
+      description: secret access key
+    - name: aws-default-region
+      description: default region
+    - name: endpoint-url
+      description: endpoint url
+    - name: s3-bucket
+      description: s3 bucket
+    - name: SCRIPT
+      description: script
+  workspaces:
+  - name: task-pvc
+    mountPath: /artifacts
+  steps:
+    - name: clone-repo
+      image: alpine/git
+      env:
+        - name: REPOSITORY
+          value: $(params.repository)
+        - name: REVISION
+          value: $(params.revision)
+      command: ["/bin/sh", "-c"]
+      args:
+        - set -e -o pipefail;
+          echo "Cloning $REPOSITORY";
+          cd /workspace && git clone -q -b $REVISION $REPOSITORY .;
+    - name: npm-install
+      image: node:17
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - npm install
+      workingDir: /workspace
+    - name: build
+      image: node:17
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - npm run build
+      workingDir: /workspace
+    - name: upload
+      image: amazon/aws-cli
+      env:
+        - name: AWS_ACCESS_KEY_ID
+          value: $(params.aws-access-key-id)
+        - name: AWS_SECRET_ACCESS_KEY
+          value: $(params.aws-secret-access-key)
+        - name: AWS_DEFAULT_REGION
+          value: $(params.aws-default-region)
+        - name: ENDPOINT_URL
+          value: $(params.endpoint-url)
+        - name: S3_BUCKET
+          value: $(params.s3-bucket)
+        - name: SCRIPT
+          value: |
+            aws --version
+            aws s3 --endpoint-url $(params.endpoint-url) rm s3://$(params.s3-bucket) --recursive
+            aws s3 --endpoint-url $(params.endpoint-url) cp /workspace/build s3://$(params.s3-bucket) --recursive
+      script: "$(params.SCRIPT)"
+      args:
+        - "help"
+
+
